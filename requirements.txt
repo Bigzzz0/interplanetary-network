@@ -1,0 +1,18 @@
+# Interplanetary-Style Low-Latency Multi-Sensory Network
+# Dependencies for all components
+
+# Core FastAPI and ASGI server
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+
+# Computer Vision
+opencv-python>=4.9.0
+
+# Cryptography for Ed25519 signing
+pynacl>=1.5.0
+
+# Additional utilities
+python-multipart>=0.0.6
+websockets>=12.0
+numpy>=1.26.0
+aiofiles>=23.2.1

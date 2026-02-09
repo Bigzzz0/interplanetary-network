@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interplanetary Network - Comparison Demo</title>
+    <link rel="stylesheet" href="styles.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Inter:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🌍</span>
+                <h1>Interplanetary Network - Comparison Demo</h1>
+            </div>
+            <div class="connection-status" id="connectionStatus">
+                <span class="status-dot disconnected"></span>
+                <span class="status-text">Disconnected</span>
+            </div>
+        </header>
+
+        <!-- Architecture Diagram -->
+        <section class="architecture-section">
+            <h2>🛰️ Network Architecture</h2>
+            <div class="architecture-diagram">
+                <div class="node-box mars-node" id="marsNode">
+                    <div class="node-icon">🔴</div>
+                    <div class="node-name">Mars</div>
+                    <div class="node-label">Sender :8001</div>
+                    <div class="node-status" id="marsStatus">Offline</div>
+                </div>
+                <div class="connection-line">
+                    <div class="data-packet" id="packet1"></div>
+                </div>
+                <div class="node-box network-node" id="networkNode">
+                    <div class="node-icon">🌐</div>
+                    <div class="node-name">Network</div>
+                    <div class="node-label">Delay :8002</div>
+                    <div class="node-status" id="networkStatus">Offline</div>
+                </div>
+                <div class="connection-line">
+                    <div class="data-packet" id="packet2"></div>
+                </div>
+                <div class="node-box edge-node" id="edgeNode">
+                    <div class="node-icon">🛰️</div>
+                    <div class="node-name">Lagrange</div>
+                    <div class="node-label">Edge :8003</div>
+                    <div class="node-status" id="edgeStatus">Offline</div>
+                </div>
+                <div class="connection-line">
+                    <div class="data-packet synthesized" id="packet3"></div>
+                </div>
+                <div class="node-box earth-node" id="earthNode">
+                    <div class="node-icon">🌍</div>
+                    <div class="node-name">Earth</div>
+                    <div class="node-label">Receiver :8004</div>
+                    <div class="node-status" id="earthStatus">Ready</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Side-by-Side Comparison -->
+        <main class="comparison-section">
+            <!-- LEFT: Without Prediction (Baseline) -->
+            <div class="comparison-panel baseline-panel">
+                <div class="panel-header baseline-header">
+                    <h3>❌ WITHOUT Prediction</h3>
+                    <span class="panel-subtitle">Raw delayed stream (Baseline)</span>
+                </div>
+                <div class="video-container baseline-video">
+                    <canvas id="baselineCanvas" width="640" height="480"></canvas>
+                    <div class="delay-overlay" id="baselineDelay">
+                        <div class="delay-icon">⏳</div>
+                        <div class="delay-text">Waiting for data...</div>
+                        <div class="delay-value" id="baselineDelayValue">Simulated: 3000ms delay</div>
+                    </div>
+                    <div class="frame-counter" id="baselineFrameCounter">
+                        Frame: <span id="baselineFrameId">-</span>
+                    </div>
+                </div>
+                <div class="panel-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Frames Received:</span>
+                        <span class="stat-value" id="baselineFrames">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Effective FPS:</span>
+                        <span class="stat-value" id="baselineFps">0</span>
+                    </div>
+                    <div class="stat-item highlight-bad">
+                        <span class="stat-label">Update Interval:</span>
+                        <span class="stat-value" id="baselineInterval">~3000ms</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CENTER: Divider with Arrow -->
+            <div class="comparison-divider">
+                <div class="divider-line"></div>
+                <div class="divider-arrow">
+                    <span>VS</span>
+                </div>
+                <div class="divider-line"></div>
+            </div>
+
+            <!-- RIGHT: With Prediction -->
+            <div class="comparison-panel prediction-panel">
+                <div class="panel-header prediction-header">
+                    <h3>✅ WITH Prediction</h3>
+                    <span class="panel-subtitle">Edge-enhanced stream</span>
+                </div>
+                <div class="video-container prediction-video">
+                    <canvas id="predictionCanvas" width="640" height="480"></canvas>
+                    <div class="frame-type-badge" id="frameTypeBadge">
+                        <span class="badge-icon">📷</span>
+                        <span class="badge-text">ORIGINAL</span>
+                    </div>
+                    <div class="confidence-bar-overlay">
+                        <div class="confidence-label">Confidence</div>
+                        <div class="confidence-track">
+                            <div class="confidence-fill" id="confidenceFill"></div>
+                        </div>
+                        <span class="confidence-value" id="confidenceValue">100%</span>
+                    </div>
+                    <div class="frame-counter prediction-counter" id="predictionFrameCounter">
+                        Frame: <span id="predictionFrameId">-</span>
+                    </div>
+                </div>
+                <div class="panel-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Total Frames:</span>
+                        <span class="stat-value" id="predictionFrames">0</span>
+                    </div>
+                    <div class="stat-item highlight-synth">
+                        <span class="stat-label">Synthesized:</span>
+                        <span class="stat-value" id="synthFrames">0</span>
+                    </div>
+                    <div class="stat-item highlight-good">
+                        <span class="stat-label">Effective FPS:</span>
+                        <span class="stat-value" id="predictionFps">0</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Frame Packet Cards -->
+        <section class="packet-section">
+            <h2>📦 Frame Packet Details</h2>
+            <div class="packet-grid">
+                <!-- Original Frame Packet -->
+                <div class="packet-card original-packet">
+                    <div class="packet-header">
+                        <span class="packet-icon">📦</span>
+                        <span class="packet-title">Source Frame Packet</span>
+                        <span class="packet-badge original">ORIGINAL</span>
+                    </div>
+                    <div class="packet-body">
+                        <div class="packet-row">
+                            <span class="packet-label">Frame ID:</span>
+                            <span class="packet-value" id="srcFrameId">frame_0</span>
+                        </div>
+                        <div class="packet-row">
+                            <span class="packet-label">Timestamp:</span>
+                            <span class="packet-value" id="srcTimestamp">--</span>
+                        </div>
+                        <div class="packet-row">
+                            <span class="packet-label">Source:</span>
+                            <span class="packet-value">Mars Rover Camera</span>
+                        </div>
+                        <div class="packet-row">
+                            <span class="packet-label">Payload Size:</span>
+                            <span class="packet-value" id="srcPayloadSize">-- KB</span>
+                        </div>
+                        <div class="packet-row">
+                            <span class="packet-label">Signature:</span>
+                            <span class="packet-value signature-preview" id="srcSignature">--</span>
+                        </div>
+                        <div class="packet-row">
+                            <span class="packet-label">Status:</span>
+                            <span class="packet-value status-verified" id="srcStatus">🔒 Verified</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Synthesized Frame Packet -->
+                <div class="packet-card synth-packet">
+                    <div class="packet-header">
+                        <span class="packet-icon">✨</span>
+                        <span class="packet-title">Synthesized Frame Packet</span>
+                        <span class="packet-badge synth">AI GENERATED</span>
+                    </div>
+                    <div class="packet-body">
+                        <div class="packet-row">
+                            <span class="packet-label">Frame ID:</span>
+                            <span class="packet-value" id="synthFrameId">synth_0</span>
+                        </div>
+                        <div class="packet-row">
+                            <span class="packet-label">Base Frame:</span>
+                            <span class="packet-value" id="synthBaseFrame">frame_0</span>
+                        </div>
+                        <div class="packet-row">
+                            <span class="packet-label">Generated At:</span>
+                            <span class="packet-value">Lagrange Edge Node</span>
+                        </div>
+                        <div class="packet-row">
+                            <span class="packet-label">Confidence:</span>
+                            <span class="packet-value confidence-high" id="synthConfidence">95.2%</span>
+                        </div>
+                        <div class="packet-row">
+                            <span class="packet-label">Model:</span>
+                            <span class="packet-value">Frame Interpolation v2.1</span>
+                        </div>
+                        <div class="packet-row">
+                            <span class="packet-label">Edge Attestation:</span>
+                            <span class="packet-value signature-preview" id="synthAttestation">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Enhanced Performance Comparison -->
+        <section class="performance-section">
+            <h2>📊 Performance Comparison</h2>
+            <div class="performance-grid">
+                <!-- Frame Rate -->
+                <div class="perf-card">
+                    <div class="perf-header">Frame Rate (FPS)</div>
+                    <div class="perf-comparison">
+                        <div class="perf-baseline">
+                            <span class="perf-value" id="perfBaselineFps">0.3</span>
+                            <span class="perf-label">Baseline</span>
+                        </div>
+                        <div class="perf-vs">→</div>
+                        <div class="perf-prediction">
+                            <span class="perf-value" id="perfPredictionFps">15</span>
+                            <span class="perf-label">With Prediction</span>
+                        </div>
+                    </div>
+                    <div class="perf-improvement">
+                        <span class="improvement-arrow">⬆</span>
+                        <span class="improvement-value" id="fpsImprovement">50x</span>
+                        <span class="improvement-text">faster updates</span>
+                    </div>
+                </div>
+
+                <!-- Update Latency -->
+                <div class="perf-card">
+                    <div class="perf-header">Update Latency (ms)</div>
+                    <div class="perf-comparison">
+                        <div class="perf-baseline">
+                            <span class="perf-value" id="perfBaselineLatency">3000</span>
+                            <span class="perf-label">Baseline</span>
+                        </div>
+                        <div class="perf-vs">→</div>
+                        <div class="perf-prediction">
+                            <span class="perf-value" id="perfPredictionLatency">66</span>
+                            <span class="perf-label">With Prediction</span>
+                        </div>
+                    </div>
+                    <div class="perf-improvement positive">
+                        <span class="improvement-arrow">⬇</span>
+                        <span class="improvement-value" id="latencyImprovement">97%</span>
+                        <span class="improvement-text">lower latency</span>
+                    </div>
+                </div>
+
+                <!-- Frames Delivered -->
+                <div class="perf-card">
+                    <div class="perf-header">Frames Delivered</div>
+                    <div class="perf-comparison">
+                        <div class="perf-baseline">
+                            <span class="perf-value" id="perfBaselineFrames">0</span>
+                            <span class="perf-label">Baseline</span>
+                        </div>
+                        <div class="perf-vs">→</div>
+                        <div class="perf-prediction">
+                            <span class="perf-value" id="perfPredictionFrames">0</span>
+                            <span class="perf-label">With Prediction</span>
+                        </div>
+                    </div>
+                    <div class="perf-improvement">
+                        <span class="improvement-arrow">⬆</span>
+                        <span class="improvement-value" id="framesImprovement">0x</span>
+                        <span class="improvement-text">more frames</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Verification Status -->
+            <div class="verification-row">
+                <div class="verify-badge">
+                    <span class="verify-icon">🔐</span>
+                    <span class="verify-label">Origin Verified:</span>
+                    <span class="verify-value valid" id="originVerified">VALID</span>
+                </div>
+                <div class="verify-badge">
+                    <span class="verify-icon">🛰️</span>
+                    <span class="verify-label">Edge Attested:</span>
+                    <span class="verify-value signed" id="edgeAttested">SIGNED</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Prediction Quality Metrics -->
+        <section class="quality-section">
+            <h2>🎯 Prediction Quality Metrics</h2>
+            <div class="quality-grid">
+                <div class="quality-card">
+                    <div class="quality-value" id="psnrValue">38.5</div>
+                    <div class="quality-label">PSNR (dB)</div>
+                    <div class="quality-bar">
+                        <div class="quality-fill" id="psnrBar" style="width: 77%;"></div>
+                    </div>
+                    <div class="quality-desc">Peak Signal-to-Noise Ratio</div>
+                </div>
+                <div class="quality-card">
+                    <div class="quality-value" id="ssimValue">0.97</div>
+                    <div class="quality-label">SSIM Index</div>
+                    <div class="quality-bar">
+                        <div class="quality-fill ssim" id="ssimBar" style="width: 97%;"></div>
+                    </div>
+                    <div class="quality-desc">Structural Similarity</div>
+                </div>
+                <div class="quality-card">
+                    <div class="quality-value" id="matchValue">94.2%</div>
+                    <div class="quality-label">Frame Match</div>
+                    <div class="quality-bar">
+                        <div class="quality-fill match" id="matchBar" style="width: 94.2%;"></div>
+                    </div>
+                    <div class="quality-desc">Motion Consistency Score</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Live Data Stream Graph -->
+        <section class="graph-section">
+            <h2>📈 Live Data Stream Graph</h2>
+            <div class="graph-container">
+                <canvas id="streamGraph" width="800" height="200"></canvas>
+                <div class="graph-legend">
+                    <div class="legend-item original">
+                        <span class="legend-dot"></span>
+                        <span>Original (from Mars)</span>
+                    </div>
+                    <div class="legend-item predicted">
+                        <span class="legend-dot"></span>
+                        <span>Predicted (Edge)</span>
+                    </div>
+                </div>
+            </div>
+            <div class="stream-stats">
+                <div class="stream-stat">
+                    <span class="stream-icon">📦</span>
+                    <span class="stream-value" id="totalOriginalFrames">0</span>
+                    <span class="stream-label">Original Frames</span>
+                </div>
+                <div class="stream-stat">
+                    <span class="stream-icon">✨</span>
+                    <span class="stream-value" id="totalPredictedFrames">0</span>
+                    <span class="stream-label">Predicted Frames</span>
+                </div>
+                <div class="stream-stat">
+                    <span class="stream-icon">📈</span>
+                    <span class="stream-value" id="predOrigRatio">0:0</span>
+                    <span class="stream-label">Pred:Orig Ratio</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Controls -->
+        <section class="controls-section">
+            <button class="btn btn-primary btn-large" id="startBtn">
+                <span class="btn-icon">▶</span> Start Comparison Demo
+            </button>
+            <button class="btn btn-secondary" id="stopBtn" disabled>
+                <span class="btn-icon">⏹</span> Stop
+            </button>
+            <div class="delay-control">
+                <label>Simulated Delay:</label>
+                <select id="delaySelect">
+                    <option value="100">100 ms</option>
+                    <option value="150">150 ms</option>
+                    <option value="200">200 ms</option>
+                    <option value="300">300 ms</option>
+                    <option value="500" selected>500 ms</option>
+                    <option value="1000">1 second</option>
+                    <option value="2000">2 seconds</option>
+                    <option value="3000">3 seconds</option>
+                    <option value="5000">5 seconds</option>
+                </select>
+            </div>
+        </section>
+
+        <!-- Event Log -->
+        <section class="log-section">
+            <h3>📝 Event Log</h3>
+            <div class="log-container" id="logContainer">
+                <div class="log-entry info">[System] Comparison Demo ready. Click "Start Comparison Demo" to begin.
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>🚀 Interplanetary-Style Latency-Masking Network | Computer Networks Course Project</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
