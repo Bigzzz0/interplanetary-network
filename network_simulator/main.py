@@ -35,7 +35,7 @@ app.add_middleware(
 @dataclass
 class NetworkConfig:
     """Configuration for network simulation parameters."""
-    base_delay_ms: int = 3000  # Base delay in milliseconds (3 seconds default)
+    base_delay_ms: int = 3000  # Base delay in milliseconds (starts at 3000)
     jitter_ms: int = 500  # Random jitter range
     packet_loss_rate: float = 0.02  # 2% packet loss
     bandwidth_limit_kbps: Optional[int] = None  # Optional bandwidth limit

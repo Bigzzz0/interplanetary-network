@@ -229,88 +229,134 @@ function handleMessage(event) {
 function processFrame(data) {
     try {
         const metadata = data.metadata || {};
-        const frameData = data.data;
+        const base64Data = data.data;
 
-        if (!frameData) {
+        if (!base64Data) {
             console.error('No frame data received');
             return;
         }
 
-        const imgData = "data:image/jpeg;base64," + frameData;
+        // Decode base64 to JSON string
+        const jsonString = atob(base64Data);
+        const telemetry = JSON.parse(jsonString);
+
         const isSynthesized = metadata.is_synthesized === true;
 
-        const image = new Image();
-
-        image.onerror = (err) => {
-            console.error('Failed to load image:', err);
-            log('Image load error', 'error');
-        };
-
-        image.onload = () => {
-            console.log('Image loaded successfully, dimensions:', image.width, 'x', image.height);
-            try {
-                // Always render to Prediction Canvas (Right Side)
-                renderFrame(elements.prediction.ctx, image);
+        try {
+            if (isSynthesized) {
+                // prediction canvas only renders the extrapolated 30 FPS stream
+                renderTelemetry(elements.prediction.ctx, telemetry);
                 updatePredictionStats(metadata, isSynthesized);
-
-                // Only render non-synthesized frames to Baseline Canvas (Left Side)
-                if (!isSynthesized) {
-                    // Hide "Waiting" overlay on first frame
-                    if (!elements.baseline.delayOverlay.classList.contains('hidden')) {
-                        elements.baseline.delayOverlay.classList.add('hidden');
-                    }
-
-                    renderFrame(elements.baseline.ctx, image);
-                    updateBaselineStats(metadata, data.network_metadata || {});
-                }
-
-                // Update new UI components
                 updatePacketCards(metadata, isSynthesized);
-                updatePerformanceSection();
-                updateQualityMetrics(metadata);
-
-                // Update verification status
-                if (elements.performance.originVerified) {
-                    elements.performance.originVerified.textContent = metadata.origin_verified ? 'VALID' : 'PENDING';
-                    elements.performance.originVerified.className = metadata.origin_verified ? 'verify-value valid' : 'verify-value';
+            } else {
+                // baseline canvas only renders the raw incoming network packets (delayed)
+                // Hide "Waiting" overlay on first frame
+                if (!elements.baseline.delayOverlay.classList.contains('hidden')) {
+                    elements.baseline.delayOverlay.classList.add('hidden');
                 }
-                if (elements.performance.edgeAttested && isSynthesized) {
-                    elements.performance.edgeAttested.textContent = metadata.edge_signature ? 'SIGNED' : 'PENDING';
-                    elements.performance.edgeAttested.className = metadata.edge_signature ? 'verify-value signed' : 'verify-value';
-                }
-
-                // Update comparison logic
-                updateComparison();
-            } catch (renderError) {
-                console.error('Render error:', renderError);
-                log('Render error: ' + renderError.message, 'error');
+                renderTelemetry(elements.baseline.ctx, telemetry);
+                updateBaselineStats(metadata, data.network_metadata || {});
+                updatePacketCards(metadata, isSynthesized);
             }
-        };
 
-        image.src = imgData;
+            // Update cross-comparisons that don't depend on specific frame renders
+            updatePerformanceSection();
+            if (isSynthesized) {
+                updateQualityMetrics(metadata);
+            }
+
+            // Update verification status (Origin attached to both usually, Edge only on synth)
+            if (elements.performance.originVerified) {
+                elements.performance.originVerified.textContent = metadata.origin_verified ? 'VALID' : 'PENDING';
+                elements.performance.originVerified.className = metadata.origin_verified ? 'verify-value valid' : 'verify-value';
+            }
+            if (elements.performance.edgeAttested && isSynthesized) {
+                elements.performance.edgeAttested.textContent = metadata.edge_signature ? 'SIGNED' : 'PENDING';
+                elements.performance.edgeAttested.className = metadata.edge_signature ? 'verify-value signed' : 'verify-value';
+            }
+
+            // Update comparison logic stats
+            updateComparison();
+        } catch (renderError) {
+            console.error('Render error:', renderError);
+            log('Render error: ' + renderError.message, 'error');
+        }
+
     } catch (e) {
         console.error('processFrame error:', e);
         log('Frame processing error: ' + e.message, 'error');
     }
 }
 
-function renderFrame(ctx, image) {
-    // Determine scaling to fit canvas while maintaining aspect ratio
+function renderTelemetry(ctx, telemetry) {
     const canvas = ctx.canvas;
-    console.log('renderFrame - canvas:', canvas.width, 'x', canvas.height, 'image:', image.width, 'x', image.height);
 
-    const hRatio = canvas.width / image.width;
-    const vRatio = canvas.height / image.height;
-    const ratio = Math.min(hRatio, vRatio);
+    // Clear canvas
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const centerShift_x = (canvas.width - image.width * ratio) / 2;
-    const centerShift_y = (canvas.height - image.height * ratio) / 2;
+    // Draw background grid
+    ctx.strokeStyle = '#2a2a4e';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < canvas.width; x += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+    }
+    for (let y = 0; y < canvas.height; y += 40) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+    }
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(image, 0, 0, image.width, image.height,
-        centerShift_x, centerShift_y, image.width * ratio, image.height * ratio);
+    // Draw Mars terrain base line
+    ctx.strokeStyle = '#f39c12';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, 360);
+    ctx.lineTo(canvas.width, 360);
+    ctx.stroke();
 
-    console.log('renderFrame complete - drew at', centerShift_x, centerShift_y, 'size:', image.width * ratio, 'x', image.height * ratio);
+    // Draw telemetry info text
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '14px "Inter", "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`BATTERY: ${telemetry.battery ? telemetry.battery.toFixed(1) : '--'}%`, 10, 30);
+    ctx.fillText(`TEMP: ${telemetry.temperature ? telemetry.temperature.toFixed(1) : '--'}°C`, 10, 50);
+    ctx.fillText(`STATE: ${telemetry.state || 'UNKNOWN'}`, 10, 70);
+
+    const x = telemetry.rover_x !== undefined ? telemetry.rover_x : canvas.width / 2;
+    const y = telemetry.rover_y !== undefined ? telemetry.rover_y : 340;
+
+    // Draw the rover (simple square with wheels)
+    const roverWidth = 60;
+    const roverHeight = 40;
+
+    // Rover body
+    ctx.fillStyle = '#bdc3c7';
+    ctx.fillRect(x, y - roverHeight, roverWidth, roverHeight);
+
+    // Rover cab
+    ctx.fillStyle = '#7f8c8d';
+    ctx.fillRect(x + 10, y - roverHeight - 15, roverWidth - 20, 15);
+
+    // Wheels
+    ctx.fillStyle = '#34495e';
+    ctx.beginPath();
+    ctx.arc(x + 15, y, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(x + roverWidth - 15, y, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Position text
+    ctx.fillStyle = '#00ff88';
+    ctx.font = '12px "Inter", "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`[X:${Math.round(x)}, Y:${Math.round(y)}]`, x + roverWidth / 2, y + 25);
 }
 
 // Stats Updates
@@ -518,8 +564,8 @@ function updatePacketCards(metadata, isSynthesized) {
             elements.packets.srcTimestamp.textContent = new Date().toLocaleTimeString();
         }
         if (elements.packets.srcPayloadSize) {
-            const size = metadata.frame_size ? (metadata.frame_size / 1024).toFixed(1) : '--';
-            elements.packets.srcPayloadSize.textContent = size + ' KB';
+            const size = metadata.frame_size ? metadata.frame_size : '--';
+            elements.packets.srcPayloadSize.textContent = size + ' bytes';
         }
         if (elements.packets.srcSignature && metadata.signature) {
             elements.packets.srcSignature.textContent = metadata.signature.substring(0, 16) + '...';
