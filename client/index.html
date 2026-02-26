@@ -65,6 +65,30 @@
             </div>
         </section>
 
+        <!-- Controls -->
+        <section class="controls-section">
+            <button class="btn btn-primary btn-large" id="startBtn">
+                <span class="btn-icon">▶</span> Start Comparison Demo
+            </button>
+            <button class="btn btn-secondary" id="stopBtn" disabled>
+                <span class="btn-icon">⏹</span> Stop
+            </button>
+            <div class="delay-control">
+                <label>Simulated Delay:</label>
+                <select id="delaySelect">
+                    <option value="100">100 ms</option>
+                    <option value="150">150 ms</option>
+                    <option value="200">200 ms</option>
+                    <option value="300">300 ms</option>
+                    <option value="500" selected>500 ms</option>
+                    <option value="1000">1 second</option>
+                    <option value="2000">2 seconds</option>
+                    <option value="3000">3 seconds</option>
+                    <option value="5000">5 seconds</option>
+                </select>
+            </div>
+        </section>
+
         <!-- Side-by-Side Comparison -->
         <main class="comparison-section">
             <!-- LEFT: Without Prediction (Baseline) -->
@@ -371,30 +395,6 @@
                     <span class="stream-value" id="predOrigRatio">0:0</span>
                     <span class="stream-label">Pred:Orig Ratio</span>
                 </div>
-            </div>
-        </section>
-
-        <!-- Controls -->
-        <section class="controls-section">
-            <button class="btn btn-primary btn-large" id="startBtn">
-                <span class="btn-icon">▶</span> Start Comparison Demo
-            </button>
-            <button class="btn btn-secondary" id="stopBtn" disabled>
-                <span class="btn-icon">⏹</span> Stop
-            </button>
-            <div class="delay-control">
-                <label>Simulated Delay:</label>
-                <select id="delaySelect">
-                    <option value="100">100 ms</option>
-                    <option value="150">150 ms</option>
-                    <option value="200">200 ms</option>
-                    <option value="300">300 ms</option>
-                    <option value="500" selected>500 ms</option>
-                    <option value="1000">1 second</option>
-                    <option value="2000">2 seconds</option>
-                    <option value="3000">3 seconds</option>
-                    <option value="5000">5 seconds</option>
-                </select>
             </div>
         </section>
 
