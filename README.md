@@ -1,10 +1,10 @@
-# Interplanetary-Style Low-Latency Multi-Sensory Network
+# Interplanetary Network Simulator (2D Telemetry Edition)
 
-A working undergraduate-level prototype demonstrating a simplified *latency-masking* inter-node communication system using high-throughput links, edge prediction, and provenance metadata.
+A working undergraduate-level prototype demonstrating a simplified *latency-masking* inter-node communication system. This project simulates the transmission of planetary rovers exchanging delayed telemetry data, utilizing Edge predictive extrapolation to ensure a smooth, real-time UI experience despite heavy network lag.
 
 ## 🚀 Project Overview
 
-This project simulates interplanetary communication with predictive processing at an edge node to improve perceived latency for video streams, with clear instrumentation of link performance and cryptographic provenance verification.
+This project simulates interplanetary communication with predictive processing at an edge node to improve perceived latency for telemetry streams, supported by clear instrumentation of link performance and cryptographic provenance verification.
 
 ### Architecture
 
@@ -20,10 +20,10 @@ This project simulates interplanetary communication with predictive processing a
 
 | Component | Port | Description |
 |-----------|------|-------------|
-| **Sender** | 8001 | Captures video frames, signs with Ed25519, streams via WebSocket |
-| **Network Simulator** | 8002 | Injects configurable delay, jitter, and packet loss |
-| **Edge Server** | 8003 | Runs optical flow prediction, generates synthesized frames, signs attestations |
-| **Client** | 8004 | Browser-based UI for receiving and verifying video streams |
+| **Sender** | 8001 | Simulates a Mars rover, generating 2D telemetry (X, Y, Battery, Temp), signs with Ed25519, streams via WebSocket |
+| **Network Simulator** | 8002 | Injects configurable delay (default 3000ms), jitter, and packet loss |
+| **Edge Server** | 8003 | Runs continuous linear extrapolation with damping, generates smooth 30FPS synthesized frames, signs attestations |
+| **Client** | 8004 | Premium browser-based UI rendering dual HTML5 Canvas streams (Delayed vs Predicted) with real-time analytics graphs |
 
 ## 🛠️ Installation
 
@@ -35,7 +35,7 @@ This project simulates interplanetary communication with predictive processing a
 
 ```bash
 # Clone and enter project directory
-cd network
+cd interplanetary-network
 
 # Create virtual environment (recommended)
 python -m venv venv
@@ -76,15 +76,14 @@ python main.py
 
 ### Access the UI
 
-Open your browser and navigate to: **http://localhost:8004**
-
-Click "Connect to Stream" to start receiving video.
+Open your browser and navigate to: **http://localhost:8004** (or `http://localhost:8000` depending on the hosting method).
+Click "Start Comparison Demo" to begin receiving telemetry.
 
 ## 🔧 Configuration
 
 ### Network Simulator Settings
 
-Adjust delay and packet loss via REST API:
+Adjust delay and packet loss via REST API or via the Web UI controls:
 
 ```bash
 # Get current config
@@ -98,32 +97,27 @@ curl -X POST "http://localhost:8002/config?base_delay_ms=5000&packet_loss_rate=0
 
 - ✅ **Ed25519 Cryptographic Signing** - Origin frames signed for provenance
 - ✅ **Edge Attestation** - Synthesized frames carry edge server signatures
-- ✅ **Optical Flow Prediction** - Frame interpolation reduces perceived latency
-- ✅ **Real-time Metrics** - FPS, latency, frame counts in the UI
-- ✅ **Confidence Display** - Visual indicator of prediction confidence
-- ✅ **Provenance Badges** - Clear UI indication of verified vs synthesized frames
+- ✅ **Continuous Extrapolation** - Smooth prediction logic completely masks 3-second network delays without "rubber-banding"
+- ✅ **Real-time Dual Tracking** - Side-by-side comparison of Raw Network Delay vs Edge-Predictive Stream
+- ✅ **Live Metrics Graph** - Dynamically drawn charts displaying network performance
 
 ## 📁 Project Structure
 
 ```
-network/
+interplanetary-network/
 ├── requirements.txt         # Python dependencies
 ├── README.md                # This file
 ├── sender/                  # Mars Emulator
-│   ├── __init__.py
-│   └── main.py              # Video capture and signing
+│   └── main.py              # Telemetry generator and signing
 ├── network_simulator/       # Delay/Loss Proxy
-│   ├── __init__.py
 │   └── main.py              # Configurable network simulation
 ├── edge_server/             # Lagrange Edge Predictor
-│   ├── __init__.py
-│   └── main.py              # Optical flow interpolation
+│   └── main.py              # Continuous 30FPS extrapolation
 └── client/                  # Earth Receiver
-    ├── __init__.py
     ├── main.py              # WebSocket bridge server
     ├── index.html           # Main UI page
     ├── styles.css           # Premium dark theme
-    └── app.js               # Client-side JavaScript
+    └── app.js               # Dual-canvas rendering & analytics
 ```
 
 ## 👥 Team Roles
