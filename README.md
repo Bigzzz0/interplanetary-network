@@ -158,11 +158,13 @@ interplanetary-network/
 
 ## 👥 Team Roles
 
-- **Member 1**: Sender & Dataset
-- **Member 2**: Edge Predictor
-- **Member 3**: Client & UI
-- **Member 4**: Network & Orchestration
-- **Member 5**: Testing & Reports
+| Name | Responsibility |
+|------|----------------|
+| **Tankun** | Sender & Data Preparation |
+| **Sikarin** | AI Algorithm & Edge Node Logic |
+| **Sorawit** | Client UI & Signature Verification |
+| **Sapphanyu** | Network Simulation & Control System |
+| **Teeramet** | Evaluation & Reporting |
 
 ## 📄 License
 
