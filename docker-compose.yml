@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  sender:
+    build:
+      context: .
+      dockerfile: sender/Dockerfile
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+
+  network_simulator:
+    build:
+      context: .
+      dockerfile: network_simulator/Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      - SENDER_HOST=sender
+    depends_on:
+      - sender
+    restart: unless-stopped
+
+  edge_server:
+    build:
+      context: .
+      dockerfile: edge_server/Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      - NETWORK_SIMULATOR_HOST=network_simulator
+    depends_on:
+      - network_simulator
+    restart: unless-stopped
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    ports:
+      - "8004:8004"
+    environment:
+      - EDGE_SERVER_HOST=edge_server
+    depends_on:
+      - edge_server
+    restart: unless-stopped

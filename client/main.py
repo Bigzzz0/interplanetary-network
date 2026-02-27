@@ -71,7 +71,8 @@ async def stream_to_client(websocket: WebSocket):
     print("Browser client connected")
     
     # Connect to edge server
-    edge_uri = "ws://localhost:8003/process"
+    edge_host = os.environ.get("EDGE_SERVER_HOST", "localhost")
+    edge_uri = f"ws://{edge_host}:8003/process"
     
     try:
         async with websockets.connect(edge_uri) as edge_ws:

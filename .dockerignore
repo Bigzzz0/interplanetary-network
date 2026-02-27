@@ -1,0 +1,32 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Signing keys (generated at runtime)
+sender/sender_private_key.bin
+sender/sender_public_key.bin
+edge_server/edge_private_key.bin
+edge_server/edge_public_key.bin
+
+# Dataset (large files)
+dataset/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Misc
+*.md
+run_demo.py

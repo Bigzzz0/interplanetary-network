@@ -79,7 +79,37 @@ python main.py
 Open your browser and navigate to: **http://localhost:8004** (or `http://localhost:8000` depending on the hosting method).
 Click "Start Comparison Demo" to begin receiving telemetry.
 
-## 🔧 Configuration
+## � Running with Docker
+
+> **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) must be installed and running.
+
+### Start all services with one command
+
+```bash
+docker compose up --build
+```
+
+All 4 services will start in the correct order automatically. Then open **http://localhost:8004** in your browser.
+
+### Stop all services
+
+```bash
+docker compose down
+```
+
+### View logs for a specific service
+
+```bash
+docker compose logs -f sender
+docker compose logs -f network_simulator
+docker compose logs -f edge_server
+docker compose logs -f client
+```
+
+> **Note:** Signing keys (`sender_private_key.bin`, `edge_private_key.bin`) are generated fresh inside each container on first run. If you want persistent keys across restarts, mount them as Docker volumes.
+
+## �🔧 Configuration
+
 
 ### Network Simulator Settings
 
@@ -105,15 +135,21 @@ curl -X POST "http://localhost:8002/config?base_delay_ms=5000&packet_loss_rate=0
 
 ```
 interplanetary-network/
+├── docker-compose.yml       # Docker orchestration (all 4 services)
+├── .dockerignore            # Docker build exclusions
 ├── requirements.txt         # Python dependencies
 ├── README.md                # This file
 ├── sender/                  # Mars Emulator
+│   ├── Dockerfile
 │   └── main.py              # Telemetry generator and signing
 ├── network_simulator/       # Delay/Loss Proxy
+│   ├── Dockerfile
 │   └── main.py              # Configurable network simulation
 ├── edge_server/             # Lagrange Edge Predictor
+│   ├── Dockerfile
 │   └── main.py              # Continuous 30FPS extrapolation
 └── client/                  # Earth Receiver
+    ├── Dockerfile
     ├── main.py              # WebSocket bridge server
     ├── index.html           # Main UI page
     ├── styles.css           # Premium dark theme

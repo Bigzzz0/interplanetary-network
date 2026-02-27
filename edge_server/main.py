@@ -6,6 +6,7 @@ generates synthesized packets with confidence, and signs attestations.
 """
 
 import asyncio
+import os
 import json
 import time
 import base64
@@ -222,7 +223,8 @@ async def process_stream(websocket: WebSocket):
     await websocket.accept()
     print("Edge processing connection established")
     
-    network_uri = "ws://localhost:8002/proxy"
+    network_host = os.environ.get("NETWORK_SIMULATOR_HOST", "localhost")
+    network_uri = f"ws://{network_host}:8002/proxy"
     
     # State shared between receiver and predictor tasks
     state = {

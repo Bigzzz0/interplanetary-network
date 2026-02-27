@@ -7,6 +7,7 @@ to emulate Earth-Mars communication characteristics.
 
 import asyncio
 import json
+import os
 import random
 import time
 from typing import Optional, Dict, Any
@@ -137,7 +138,8 @@ async def proxy_connection(websocket: WebSocket):
     print("Proxy connection established")
     
     # Connect to sender
-    sender_uri = "ws://localhost:8001/stream"
+    sender_host = os.environ.get("SENDER_HOST", "localhost")
+    sender_uri = f"ws://{sender_host}:8001/stream"
     
     try:
         async with websockets.connect(sender_uri) as sender_ws:
