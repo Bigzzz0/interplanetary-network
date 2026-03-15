@@ -36,7 +36,7 @@ torchvision>=0.16.0
 
 # RAFT Optical Flow (for ML-based interpolation)
 einops>=0.7.0  # For RAFT model
-correlation-cuda>=0.1.0  # CUDA correlation for RAFT (optional, GPU only)
+# correlation-cuda>=0.1.0  # CUDA correlation for RAFT (optional, GPU only) - removed due to install issues
 
 # DAIN Frame Interpolation (pre-trained model support)
 scipy>=1.11.0  # For DAIN model utilities

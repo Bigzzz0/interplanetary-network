@@ -15,6 +15,13 @@ import numpy as np
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+try:
+    import sounddevice as sd
+except ImportError:
+    print("[WARN] sounddevice not found, audio capture will be disabled")
+    sd = None
+
+
 from nacl.signing import SigningKey
 from nacl.encoding import Base64Encoder
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -55,6 +62,7 @@ VIDEO_SOURCE = VIDEO_FILE if VIDEO_FILE else 0  # Use file if found, else webcam
 FRAME_WIDTH = 640
 FRAME_HEIGHT = 480
 FPS = 30
+QUALITY = 85
 KEYFRAME_INTERVAL = 30  # Sign every Nth frame as keyframe
 
 # Global state
@@ -254,71 +262,161 @@ async def get_config():
 
 @app.websocket("/stream")
 async def stream_video(websocket: WebSocket):
-    """WebSocket endpoint for streaming signed video frames."""
+    """WebSocket endpoint for streaming signed video frames & audio."""
     await websocket.accept()
     print(f"Client connected - Streaming video from: {SOURCE_TYPE}")
 
     global frame_count
     frame_id = 0
-    last_frame_time = time.time()
     fps_counter = 0
     fps_display_time = time.time()
 
-    try:
-        while True:
-            frame_start_time = time.time()
-            
-            # Capture or generate frame
-            if SOURCE_TYPE == "dataset" or (isinstance(VIDEO_SOURCE, str) and os.path.exists(VIDEO_SOURCE)):
-                frame = capture_frame()
-                if frame is None:
-                    frame = create_test_pattern(frame_id)
-            else:
-                frame = capture_frame()
-                if frame is None:
-                    # Fallback to test pattern if camera not available
-                    frame = create_test_pattern(frame_id)
-            
-            # Encode frame as JPEG
-            encoded_frame = encode_frame_as_mjpeg(frame)
-            
-            # Determine if keyframe
-            is_keyframe = (frame_id % KEYFRAME_INTERVAL == 0)
-            timestamp = time.time()
-            
-            # Sign the frame
-            metadata = sign_frame_data(encoded_frame, frame_id, timestamp, is_keyframe)
-            metadata["encoding"] = "mjpeg"
-            metadata["width"] = FRAME_WIDTH
-            metadata["height"] = FRAME_HEIGHT
-            
-            # Send frame
-            await websocket.send_json({
-                "type": "frame",
-                "metadata": metadata,
-                "data": base64.b64encode(encoded_frame).decode('utf-8')
-            })
-            
-            frame_id += 1
-            fps_counter += 1
-            
-            # Display FPS every second
-            if time.time() - fps_display_time >= 1.0:
-                actual_fps = fps_counter / (time.time() - fps_display_time)
-                print(f"Streaming at {actual_fps:.1f} FPS | Frame {frame_id}")
-                fps_counter = 0
-                fps_display_time = time.time()
-            
-            # Control frame rate (~30 FPS for smooth playback)
-            elapsed = time.time() - frame_start_time
-            sleep_time = max(0, (1.0 / FPS) - elapsed)
-            await asyncio.sleep(sleep_time)
+    send_queue = asyncio.Queue()
+    is_streaming = True
+    loop = asyncio.get_running_loop()
 
+    # --- Audio Capture Setup ---
+    def audio_callback(indata, frames, time_info, status):
+        if status:
+            print(f"Audio status: {status}")
+        try:
+            if is_streaming and not loop.is_closed():
+                loop.call_soon_threadsafe(send_queue.put_nowait, {
+                    "type": "audio",
+                    "data": base64.b64encode(indata.tobytes()).decode('utf-8'),
+                    "metadata": {
+                        "timestamp": time.time(),
+                        "samplerate": 16000,
+                        "channels": 1,
+                        "dtype": "float32"
+                    }
+                })
+        except Exception:
+            pass
+
+    audio_stream = None
+    if sd is not None:
+        try:
+            audio_stream = sd.InputStream(samplerate=16000, channels=1, dtype='float32', 
+                                          blocksize=1024, callback=audio_callback)
+            audio_stream.start()
+        except Exception as e:
+            print(f"Audio init failed (mic might not be available): {e}")
+
+    async def video_capture_task():
+        nonlocal frame_id, fps_counter, fps_display_time
+        try:
+            while is_streaming:
+                frame_start_time = time.time()
+                
+                # Capture or generate frame
+                if SOURCE_TYPE == "dataset" or (isinstance(VIDEO_SOURCE, str) and os.path.exists(VIDEO_SOURCE)):
+                    frame = capture_frame()
+                    if frame is None:
+                        frame = create_test_pattern(frame_id)
+                else:
+                    frame = capture_frame()
+                    if frame is None:
+                        # Fallback to test pattern if camera not available
+                        frame = create_test_pattern(frame_id)
+                
+                # Encode frame as JPEG
+                encoded_frame = encode_frame_as_mjpeg(frame, quality=QUALITY)
+                
+                # Determine if keyframe
+                is_keyframe = (frame_id % KEYFRAME_INTERVAL == 0)
+                timestamp = time.time()
+                
+                # Sign the frame
+                metadata = sign_frame_data(encoded_frame, frame_id, timestamp, is_keyframe)
+                metadata["encoding"] = "mjpeg"
+                metadata["width"] = FRAME_WIDTH
+                metadata["height"] = FRAME_HEIGHT
+                
+                # Send frame
+                await send_queue.put({
+                    "type": "frame",
+                    "metadata": metadata,
+                    "data": base64.b64encode(encoded_frame).decode('utf-8')
+                })
+                
+                frame_id += 1
+                fps_counter += 1
+                
+                # Display FPS every second
+                if time.time() - fps_display_time >= 1.0:
+                    actual_fps = fps_counter / (time.time() - fps_display_time)
+                    print(f"Streaming at {actual_fps:.1f} FPS | Frame {frame_id}")
+                    fps_counter = 0
+                    fps_display_time = time.time()
+                
+                # Control frame rate (~30 FPS for smooth playback)
+                elapsed = time.time() - frame_start_time
+                sleep_time = max(0, (1.0 / FPS) - elapsed)
+                await asyncio.sleep(sleep_time)
+        except Exception as e:
+            if is_streaming:
+                print(f"Video task error: {e}")
+
+    async def sender_task():
+        nonlocal is_streaming
+        try:
+            while is_streaming:
+                msg = await send_queue.get()
+                await websocket.send_json(msg)
+        except Exception as e:
+            # Client disconnected or socket closed
+            pass
+        finally:
+            is_streaming = False
+
+    async def receiver_task():
+        global FRAME_WIDTH, FRAME_HEIGHT, FPS, QUALITY
+        try:
+            while is_streaming:
+                msg = await websocket.receive_json()
+                if msg.get("type") == "network_feedback":
+                    delay = msg.get("delay", 0)
+                    loss = msg.get("loss_rate", 0)
+                    
+                    old_fps = FPS
+                    if delay > 2000 or loss > 0.05:
+                        FRAME_WIDTH, FRAME_HEIGHT = 320, 240
+                        FPS = 15
+                        QUALITY = 50
+                    elif delay > 1000 or loss > 0.02:
+                        FRAME_WIDTH, FRAME_HEIGHT = 480, 360
+                        FPS = 20
+                        QUALITY = 65
+                    else:
+                        FRAME_WIDTH, FRAME_HEIGHT = 640, 480
+                        FPS = 30
+                        QUALITY = 85
+                    
+                    if old_fps != FPS and camera is not None and isinstance(VIDEO_SOURCE, int):
+                        camera.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+                        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+                        camera.set(cv2.CAP_PROP_FPS, FPS)
+                        print(f"ABR: Adjusted to {FRAME_WIDTH}x{FRAME_HEIGHT}@{FPS}fps, Q={QUALITY}")
+        except Exception:
+            pass
+
+    try:
+        # Run tasks concurrently
+        await asyncio.gather(
+            video_capture_task(),
+            sender_task(),
+            receiver_task()
+        )
     except WebSocketDisconnect:
         print("Client disconnected")
     except Exception as e:
         print(f"Stream error: {e}")
     finally:
+        is_streaming = False
+        if audio_stream is not None:
+            audio_stream.stop()
+            audio_stream.close()
         if camera is not None:
             camera.release()
 

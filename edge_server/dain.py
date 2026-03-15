@@ -58,18 +58,18 @@ class DAIN(nn.Module):
             nn.Conv2d(16, 3, 3, padding=1)
         )
 
-    def forward(self, frame1, frame2, flow):
+    def forward(self, frame1, frame2, flow, t=0.5):
         # Normalize flow for grid_sample if needed, assuming flow is in pixels
         depth1 = self.depth_net(frame1)
         depth2 = self.depth_net(frame2)
         
-        # Warp both frames to t=0.5
-        warped1 = self.warping(frame1, flow * 0.5, depth1)
-        warped2 = self.warping(frame2, -flow * 0.5, depth2)
+        # Warp frames to time t
+        warped1 = self.warping(frame1, flow * t, depth1)
+        warped2 = self.warping(frame2, -flow * (1 - t), depth2)
         
         # Blend and refine
         combined = torch.cat([warped1, warped2], dim=1)
         res = self.refine(combined)
         
-        output = (warped1 + warped2) / 2.0 + res
+        output = (warped1 * (1 - t) + warped2 * t) + res
         return torch.clamp(output, 0, 1)

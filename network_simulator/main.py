@@ -118,9 +118,17 @@ async def reset_metrics():
 
 
 def calculate_delay() -> float:
-    """Calculate delay with jitter."""
+    """Calculate delay with jitter and occasional severe spikes."""
     jitter = random.uniform(-config.jitter_ms, config.jitter_ms)
-    return max(0, config.base_delay_ms + jitter) / 1000.0
+    delay_ms = config.base_delay_ms + jitter
+    
+    # 5% chance of a massive lag spike to simulate rubber-banding
+    if random.random() < 0.05:
+        spike = random.uniform(1000, 3000)
+        delay_ms += spike
+        print(f"** LAG SPIKE: +{spike:.0f}ms **")
+        
+    return max(0, delay_ms) / 1000.0
 
 
 def should_drop_packet() -> bool:
@@ -146,19 +154,52 @@ async def proxy_connection(websocket: WebSocket):
             print("Connected to sender")
             
             async def forward_with_delay():
-                """Forward messages from sender to client with delay."""
+                """Forward messages from sender to client with delay using an ordered queue."""
+                queue = asyncio.Queue()
+                
+                async def process_queue():
+                    while True:
+                        item = await queue.get()
+                        if item is None:
+                            break
+                        msg, send_time, delay_ms = item
+                        
+                        now = time.time()
+                        if send_time > now:
+                            await asyncio.sleep(send_time - now)
+                        
+                        try:
+                            await websocket.send_text(msg)
+                            metrics["packets_forwarded"] += 1
+                            metrics["total_bytes"] += len(msg)
+                            
+                            alpha = 0.1
+                            metrics["avg_delay_ms"] = (
+                                alpha * delay_ms +
+                                (1 - alpha) * metrics["avg_delay_ms"]
+                            )
+                        except Exception:
+                            pass
+                        
+                asyncio.create_task(process_queue())
+                
+                last_send_time = 0
                 async for message in sender_ws:
                     # Check for packet loss
                     if should_drop_packet():
                         metrics["packets_dropped"] += 1
                         print(f"Packet dropped (simulated loss)")
                         continue
-                    
+                        
                     # Calculate and apply delay
                     delay = calculate_delay()
-                    await asyncio.sleep(delay)
+                    send_time = time.time() + delay
                     
-                    # Parse message to add network metadata
+                    # Prevent out-of-order delivery
+                    if send_time < last_send_time:
+                        send_time = last_send_time + 0.001
+                    last_send_time = send_time
+                    
                     try:
                         data = json.loads(message)
                         data["network_metadata"] = {
@@ -169,22 +210,26 @@ async def proxy_connection(websocket: WebSocket):
                         message = json.dumps(data)
                     except json.JSONDecodeError:
                         pass
-                    
-                    # Forward message
-                    await websocket.send_text(message)
-                    
-                    # Update metrics
-                    metrics["packets_forwarded"] += 1
-                    metrics["total_bytes"] += len(message)
-                    
-                    # Update average delay (exponential moving average)
-                    alpha = 0.1
-                    metrics["avg_delay_ms"] = (
-                        alpha * (delay * 1000) +
-                        (1 - alpha) * metrics["avg_delay_ms"]
-                    )
+                        
+                    await queue.put((message, send_time, delay * 1000))
             
-            await forward_with_delay()
+            async def send_feedback():
+                """Send network conditions back to sender for adaptive bitrate."""
+                while True:
+                    await asyncio.sleep(2.0)
+                    try:
+                        await sender_ws.send(json.dumps({
+                            "type": "network_feedback",
+                            "delay": config.base_delay_ms,
+                            "loss_rate": config.packet_loss_rate
+                        }))
+                    except Exception:
+                        break
+            
+            await asyncio.gather(
+                forward_with_delay(),
+                send_feedback()
+            )
             
     except websockets.exceptions.WebSocketException as e:
         print(f"WebSocket error: {e}")

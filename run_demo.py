@@ -7,9 +7,9 @@ import signal
 
 # Define the components and their ports
 components = [
-    {"name": "Sender", "path": "sender/main.py", "port": 8001},
+    {"name": "Sender", "path": "sender/main_video.py", "port": 8001},
     {"name": "Network Simulator", "path": "network_simulator/main.py", "port": 8002},
-    {"name": "Edge Server", "path": "edge_server/main.py", "port": 8003},
+    {"name": "Edge Server", "path": "edge_server/main_ml.py", "port": 8003},
     {"name": "Client", "path": "client/main.py", "port": 8004},
 ]
 
@@ -28,14 +28,14 @@ def kill_port(port):
                 pid = parts[-1]
                 subprocess.run(["taskkill", "/PID", pid, "/F"],
                                capture_output=True)
-                print(f"   🔪 Freed port {port} (killed PID {pid})")
+                print(f"   [+] Freed port {port} (killed PID {pid})")
                 time.sleep(0.5)
     except Exception:
         pass  # Non-critical; proceed anyway
 
 def start_component(component):
     """Start a component in a new process."""
-    print(f"🚀 Starting {component['name']} on port {component['port']}...")
+    print(f"[*] Starting {component['name']} on port {component['port']}...")
     try:
         # Use python from the current environment
         python_exe = sys.executable
@@ -56,8 +56,11 @@ def start_component(component):
         # Correct approach: Run from project root, but use module path?
         # Or change CWD to component dir. Let's change CWD.
         
+        # Start the process using the script's basename
+        script_name = os.path.basename(script_path)
+        
         process = subprocess.Popen(
-            [python_exe, "main.py"],
+            [python_exe, script_name],
             cwd=cwd,
             # stdout=subprocess.PIPE, 
             # stderr=subprocess.PIPE,
@@ -69,12 +72,12 @@ def start_component(component):
         )
         return process
     except Exception as e:
-        print(f"❌ Failed to start {component['name']}: {e}")
+        print(f"[!] Failed to start {component['name']}: {e}")
         return None
 
 def main():
     print("=" * 50)
-    print("🌍 Interplanetary Network Demo Runner")
+    print("[*] Interplanetary Network Demo Runner")
     print("=" * 50)
     
     # Free any stale processes holding our ports, then start components
@@ -85,8 +88,8 @@ def main():
             processes.append(proc)
         time.sleep(1) # Wait a bit between starts
         
-    print("\n✅ All components started!")
-    print("👉 Open your browser at: http://localhost:8004")
+    print("\n[+] All components started!")
+    print("[*] Open your browser at: http://localhost:8004")
     print("Press Ctrl+C to stop all components.\n")
     
     try:
@@ -96,11 +99,11 @@ def main():
             # Check if processes are alive
             for i, proc in enumerate(processes):
                 if proc.poll() is not None:
-                    print(f"⚠️  {components[i]['name']} stopped unexpectedly!")
+                    print(f"[!] {components[i]['name']} stopped unexpectedly!")
                     # Optional: restart logic
                     
     except KeyboardInterrupt:
-        print("\n🛑 Stopping all components...")
+        print("\n[-] Stopping all components...")
         for proc in processes:
             proc.terminate()
             # Windows might typically need kill, but try terminate first

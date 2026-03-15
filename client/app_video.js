@@ -6,8 +6,8 @@
 // Configuration
 const CONFIG = {
     clientWsUrl: 'ws://localhost:8004/stream',
-    networkConfigUrl: 'http://localhost:8000/network/config',
-    modelConfigUrl: 'http://localhost:8001/config',
+    networkConfigUrl: 'http://localhost:8002/network/config',
+    modelConfigUrl: 'http://localhost:8003/config',
     reconnectInterval: 2000,
     maxLogEntries: 50,
     targetFPS: 30
@@ -27,6 +27,10 @@ let state = {
     predictionImages: [],
     maxBufferedImages: 60
 };
+
+// Audio State
+let audioCtx = null;
+let audioStartTime = 0;
 
 // DOM Elements
 const elements = {
@@ -219,6 +223,8 @@ function handleMessage(event) {
 
         if (data.type === 'frame') {
             processFrame(data);
+        } else if (data.type === 'audio') {
+            processAudio(data);
         }
 
     } catch (e) {
@@ -243,7 +249,7 @@ function processFrame(data) {
         try {
             if (isSynthesized) {
                 // Render to prediction canvas
-                renderVideoFrame(elements.prediction.ctx, base64Data);
+                renderVideoFrame(elements.prediction.ctx, base64Data, true);
                 updatePredictionStats(metadata, isSynthesized);
                 updatePacketCards(metadata, isSynthesized);
             } else {
@@ -251,7 +257,7 @@ function processFrame(data) {
                 if (!elements.baseline.delayOverlay.classList.contains('hidden')) {
                     elements.baseline.delayOverlay.classList.add('hidden');
                 }
-                renderVideoFrame(elements.baseline.ctx, base64Data);
+                renderVideoFrame(elements.baseline.ctx, base64Data, false);
                 updateBaselineStats(metadata, data.network_metadata || {});
                 updatePacketCards(metadata, isSynthesized);
             }
@@ -283,10 +289,46 @@ function processFrame(data) {
     }
 }
 
+// Audio Processing
+function processAudio(data) {
+    if (!audioCtx) return;
+    try {
+        const base64Data = data.data;
+        if (!base64Data) return;
+
+        // Decode base64 to Float32Array
+        const binaryString = window.atob(base64Data);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        const floatArray = new Float32Array(bytes.buffer);
+
+        // Create AudioBuffer
+        const buffer = audioCtx.createBuffer(1, floatArray.length, 16000);
+        buffer.copyToChannel(floatArray, 0);
+
+        // Play
+        const source = audioCtx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioCtx.destination);
+        
+        // Schedule playback smoothly
+        if (audioStartTime < audioCtx.currentTime) {
+            audioStartTime = audioCtx.currentTime;
+        }
+        source.start(audioStartTime);
+        audioStartTime += buffer.duration;
+    } catch (e) {
+        console.error('Audio processing error', e);
+    }
+}
+
 /**
  * Render MJPEG frame from base64 to canvas
  */
-function renderVideoFrame(ctx, base64Data) {
+function renderVideoFrame(ctx, base64Data, isPredictionCanvas) {
     const canvas = ctx.canvas;
     const img = new Image();
     
@@ -307,11 +349,12 @@ function renderVideoFrame(ctx, base64Data) {
         ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
         
         // Draw overlay info
-        drawOverlayInfo(ctx, canvas.width, canvas.height);
+        drawOverlayInfo(ctx, canvas.width, canvas.height, isPredictionCanvas);
     };
     
-    img.onerror = () => {
-        console.error('Failed to decode frame image');
+    img.onerror = (e) => {
+        console.error('Failed to decode frame image', e);
+        log('Error rendering image frame (corrupt base64/JPEG)', 'error');
     };
     
     // Load image from base64
@@ -321,7 +364,7 @@ function renderVideoFrame(ctx, base64Data) {
 /**
  * Draw overlay information on canvas
  */
-function drawOverlayInfo(ctx, width, height) {
+function drawOverlayInfo(ctx, width, height, isPredictionCanvas) {
     // Draw semi-transparent info bar at top
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.fillRect(0, 0, width, 30);
@@ -331,6 +374,17 @@ function drawOverlayInfo(ctx, width, height) {
     ctx.font = '12px "Courier New", monospace';
     ctx.textAlign = 'left';
     ctx.fillText(`LIVE`, 10, 20);
+    
+    // Draw mode indicator
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    if (isPredictionCanvas) {
+        ctx.fillStyle = '#00ff88';
+        ctx.fillText("SMOOTHED BY PREDICTION", width / 2, 22);
+    } else {
+        ctx.fillStyle = '#ff3333';
+        ctx.fillText("⚠️ LAG SIMULATION", width / 2, 22);
+    }
     
     // Draw timestamp
     const now = new Date().toLocaleTimeString();
@@ -381,7 +435,10 @@ function updatePredictionStats(metadata, isSynthesized) {
     elements.prediction.frameCounter.textContent = metadata.frame_id || '-';
 
     // Badge Update
-    if (isSynthesized) {
+    // Check if the edge server provided a specific flag for actual synthesis status (due to buffer routing)
+    const trulySynthesized = metadata.is_actually_synth !== undefined ? metadata.is_actually_synth : isSynthesized;
+    
+    if (trulySynthesized) {
         elements.prediction.frameTypeBadge.className = 'frame-type-badge synthesized';
         elements.prediction.frameTypeBadge.innerHTML = '<span class="badge-icon">⚡</span> ML SYNTH';
     } else {
@@ -473,6 +530,14 @@ function updateNodeStatus(status) {
 
 // Main Controls
 function startDemo() {
+    if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+    audioStartTime = 0;
     connect();
 }
 
