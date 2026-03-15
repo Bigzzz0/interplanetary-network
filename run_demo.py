@@ -15,6 +15,24 @@ components = [
 
 processes = []
 
+def kill_port(port):
+    """Kill any process currently listening on the given port (Windows)."""
+    try:
+        result = subprocess.run(
+            ["netstat", "-aon"],
+            capture_output=True, text=True
+        )
+        for line in result.stdout.splitlines():
+            if f":{port} " in line and "LISTENING" in line:
+                parts = line.split()
+                pid = parts[-1]
+                subprocess.run(["taskkill", "/PID", pid, "/F"],
+                               capture_output=True)
+                print(f"   🔪 Freed port {port} (killed PID {pid})")
+                time.sleep(0.5)
+    except Exception:
+        pass  # Non-critical; proceed anyway
+
 def start_component(component):
     """Start a component in a new process."""
     print(f"🚀 Starting {component['name']} on port {component['port']}...")
@@ -59,8 +77,9 @@ def main():
     print("🌍 Interplanetary Network Demo Runner")
     print("=" * 50)
     
-    # Start all components
+    # Free any stale processes holding our ports, then start components
     for comp in components:
+        kill_port(comp["port"])
         proc = start_component(comp)
         if proc:
             processes.append(proc)

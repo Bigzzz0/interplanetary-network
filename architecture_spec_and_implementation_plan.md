@@ -26,6 +26,16 @@ Build a working undergraduate-level prototype that demonstrates a simplified *la
 
 ---
 
+## 1.1 Enhanced Scope (Video/Audio + ML Prediction)
+
+**New features added after initial implementation:**
+
+- **Real Video/Audio Support**: Upgraded from 2D telemetry simulation to actual webcam capture with MJPEG/H.264 encoding
+- **ML-Based Frame Interpolation**: Upgraded from simple linear extrapolation to RAFT (Real-time Adaptive Flow Tracker) + DAIN (Depth-Aware Video Frame Interpolation)
+- **Audio Stream Handling**: Separate audio channel with Opus codec for synchronized playback
+
+---
+
 ## 2. Objectives & Success Criteria
 
 **Functional Objectives:**

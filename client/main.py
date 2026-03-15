@@ -52,6 +52,12 @@ async def get_script():
     return FileResponse(os.path.join(STATIC_DIR, "app.js"))
 
 
+@app.get("/app_video.js")
+async def get_video_script():
+    """Serve the video JavaScript file."""
+    return FileResponse(os.path.join(STATIC_DIR, "app_video.js"))
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""

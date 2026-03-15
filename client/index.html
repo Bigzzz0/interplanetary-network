@@ -87,6 +87,17 @@
                     <option value="5000">5 seconds</option>
                 </select>
             </div>
+            <div class="model-control">
+                <label>Synthesis Model:</label>
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="modelType" value="raft" checked> Standard (RAFT)
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="modelType" value="dain"> Depth-Aware (DAIN)
+                    </label>
+                </div>
+            </div>
         </section>
 
         <!-- Side-by-Side Comparison -->
@@ -413,7 +424,7 @@
         </footer>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app_video.js"></script>
 </body>
 
 </html>
