@@ -35,18 +35,18 @@ raft_available = False
 dain_available = False
 
 try:
-    from edge_server.raft import RAFT
+    from edge_server.raft import RAFT, load_raft_model
     raft_available = True
     print("[OK] RAFT architecture loaded")
-except ImportError:
-    print("[WARN] edge_server.raft not found")
+except ImportError as e:
+    print(f"[WARN] edge_server.raft not found: {e}")
 
 try:
-    from edge_server.dain import DAIN
+    from edge_server.dain import DAIN, load_dain_model
     dain_available = True
     print("[OK] DAIN architecture loaded")
-except ImportError:
-    print("[WARN] edge_server.dain not found")
+except ImportError as e:
+    print(f"[WARN] edge_server.dain not found: {e}")
 
 from nacl.signing import SigningKey, VerifyKey
 from nacl.encoding import Base64Encoder
@@ -153,40 +153,30 @@ async def update_config(
 def load_ml_models():
     """Load pre-trained RAFT and DAIN models."""
     global raft_model, dain_model, device
-    
+
     if not torch_available:
         return
-    
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Loading ML models on {device}...")
 
     # Load RAFT
     if raft_available:
         try:
-            raft_model = RAFT()
-            if Path(config.model_path).exists():
-                raft_model.load_state_dict(torch.load(config.model_path, map_location=device))
-                print(f"RAFT model loaded from {config.model_path}")
-            else:
-                print("[WARN] Using untrained RAFT weights")
-            raft_model.to(device)
-            raft_model.eval()
+            raft_model = load_raft_model(Path(config.model_path), device)
+            print(f"[OK] RAFT model initialized on {device}")
         except Exception as e:
             print(f"[ERROR] RAFT initialization failed: {e}")
+            raft_model = None
 
     # Load DAIN
     if dain_available:
         try:
-            dain_model = DAIN()
-            if Path(config.dain_model_path).exists():
-                dain_model.load_state_dict(torch.load(config.dain_model_path, map_location=device))
-                print(f"DAIN model loaded from {config.dain_model_path}")
-            else:
-                print("[WARN] Using untrained DAIN weights")
-            dain_model.to(device)
-            dain_model.eval()
+            dain_model = load_dain_model(Path(config.dain_model_path), device)
+            print(f"[OK] DAIN model initialized on {device}")
         except Exception as e:
             print(f"[ERROR] DAIN initialization failed: {e}")
+            dain_model = None
 
 
 def decode_frame_from_base64(data: str) -> np.ndarray:
@@ -253,54 +243,136 @@ def interpolate_frames_ml(
     num_interpolated: int = 2
 ) -> List[Tuple[np.ndarray, float]]:
     """
-    Interpolate frames using RAFT or DAIN.
+    Interpolate frames using RAFT optical flow + DAIN or standard warping.
     Returns list of (interpolated_frame, confidence) tuples.
-    """
-    if not torch_available or (not raft_model and not dain_model):
-        return []
+    
+    Args:
+        frame1: First frame (BGR, uint8)
+        frame2: Second frame (BGR, uint8)
+        num_interpolated: Number of frames to interpolate between frame1 and frame2
         
-    # Prepare images as tensors
-    img1 = torch.from_numpy(frame1).permute(2, 0, 1).float().to(device) / 255.0
-    img2 = torch.from_numpy(frame2).permute(2, 0, 1).float().to(device) / 255.0
+    Returns:
+        List of (interpolated_frame, confidence) tuples
+    """
+    if not torch_available or (raft_model is None and dain_model is None):
+        # Fallback to OpenCV
+        return interpolate_frames_opencv(frame1, frame2, num_interpolated)
+
+    h, w = frame1.shape[:2]
+    
+    # Convert to RGB and normalize to [0, 1]
+    frame1_rgb = cv2.cvtColor(frame1, cv2.COLOR_BGR2RGB)
+    frame2_rgb = cv2.cvtColor(frame2, cv2.COLOR_BGR2RGB)
+    
+    # Convert to tensors
+    img1 = torch.from_numpy(frame1_rgb).permute(2, 0, 1).float().to(device) / 255.0
+    img2 = torch.from_numpy(frame2_rgb).permute(2, 0, 1).float().to(device) / 255.0
+    
+    # Add batch dimension
+    img1_batch = img1.unsqueeze(0)
+    img2_batch = img2.unsqueeze(0)
     
     interpolated = []
     
-    with torch.no_grad():
-        # Step 1: Compute Flow using RAFT
-        if raft_model:
-            _, flow = raft_model(img1[None], img2[None])
-            flow_np = flow[0].permute(1, 2, 0).cpu().numpy()
-        else:
-            flow_np = compute_optical_flow_cv2(frame1, frame2)
-            flow = torch.from_numpy(flow_np).permute(2, 0, 1)[None].to(device)
-
-        # Step 2: Interpolate using DAIN or standard warping
-        if dain_model and config.use_dain:
-            for i in range(1, num_interpolated + 1):
-                t = i / (num_interpolated + 1)
-                interp_tensor = dain_model(img1[None], img2[None], flow, t=t)
-                interp_frame = (interp_tensor[0].permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
-                interpolated.append((interp_frame, 0.95))
-        else:
-            # Compute flow magnitude for confidence estimation
-            flow_magnitude = np.sqrt(flow_np[:, :, 0]**2 + flow_np[:, :, 1]**2)
-            avg_flow = np.mean(flow_magnitude)
-            flow_std = np.std(flow_magnitude)
+    try:
+        with torch.no_grad():
+            # Step 1: Compute Optical Flow using RAFT
+            if raft_model is not None:
+                _, flow = raft_model(img1_batch, img2_batch, iters=8)
+                flow_np = flow[0].permute(1, 2, 0).cpu().numpy()  # (H, W, 2)
+            else:
+                # Fallback to OpenCV flow
+                flow_np = compute_optical_flow_cv2(frame1, frame2)
+                flow = torch.from_numpy(flow_np).permute(2, 0, 1).unsqueeze(0).to(device)
             
-            h, w = frame1.shape[:2]
-            for i in range(1, num_interpolated + 1):
-                alpha = i / (num_interpolated + 1)
-                scaled_flow = flow_np * alpha
+            # Step 2: Interpolate using DAIN or standard warping
+            if dain_model is not None and config.use_dain:
+                # Use DAIN for depth-aware interpolation
+                for i in range(1, num_interpolated + 1):
+                    t = i / (num_interpolated + 1)
+                    try:
+                        interp_tensor = dain_model(img1_batch, img2_batch, flow, t=t)
+                        interp_frame_rgb = (interp_tensor[0].permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
+                        interp_frame = cv2.cvtColor(interp_frame_rgb, cv2.COLOR_RGB2BGR)
+                        confidence = 0.90  # DAIN confidence
+                        interpolated.append((interp_frame, confidence))
+                    except Exception as e:
+                        print(f"[WARN] DAIN interpolation failed: {e}")
+                        # Fallback to standard warping for this frame
+                        break
+            else:
+                # Use standard flow-based warping (RAFT without DAIN)
+                flow_magnitude = np.sqrt(flow_np[:, :, 0]**2 + flow_np[:, :, 1]**2)
+                avg_flow = np.mean(flow_magnitude)
+                flow_std = np.std(flow_magnitude)
                 
-                grid_x, grid_y = np.meshgrid(np.arange(w), np.arange(h))
-                map_x = (grid_x + scaled_flow[:, :, 0]).astype(np.float32)
-                map_y = (grid_y + scaled_flow[:, :, 1]).astype(np.float32)
-                
-                warped = cv2.remap(frame1, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
-                blended = cv2.addWeighted(warped, 1 - alpha, frame2, alpha, 0)
-                
-                confidence = max(0.5, min(0.98, 1.0 - (avg_flow / 50) - (flow_std / 30)))
-                interpolated.append((blended, confidence))
+                for i in range(1, num_interpolated + 1):
+                    alpha = i / (num_interpolated + 1)
+                    
+                    # Scale flow
+                    scaled_flow = flow_np * alpha
+                    
+                    # Create remap coordinates
+                    grid_x, grid_y = np.meshgrid(np.arange(w), np.arange(h))
+                    map_x = (grid_x + scaled_flow[:, :, 0]).astype(np.float32)
+                    map_y = (grid_y + scaled_flow[:, :, 1]).astype(np.float32)
+                    
+                    # Warp frame1
+                    warped = cv2.remap(frame1, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+                    
+                    # Blend with frame2
+                    blended = cv2.addWeighted(warped, 1 - alpha, frame2, alpha, 0)
+                    
+                    # Estimate confidence based on flow characteristics
+                    confidence = max(0.5, min(0.95, 1.0 - (avg_flow / 50) - (flow_std / 30)))
+                    interpolated.append((blended, confidence))
+                    
+    except Exception as e:
+        print(f"[ERROR] ML interpolation failed: {e}")
+        # Fallback to OpenCV
+        return interpolate_frames_opencv(frame1, frame2, num_interpolated)
+    
+    return interpolated
+
+
+def interpolate_frames_opencv(
+    frame1: np.ndarray,
+    frame2: np.ndarray,
+    num_interpolated: int = 2
+) -> List[Tuple[np.ndarray, float]]:
+    """
+    Fallback interpolation using OpenCV optical flow.
+    """
+    h, w = frame1.shape[:2]
+    
+    # Compute optical flow
+    flow = compute_optical_flow_cv2(frame1, frame2)
+    flow_magnitude = np.sqrt(flow[:, :, 0]**2 + flow[:, :, 1]**2)
+    avg_flow = np.mean(flow_magnitude)
+    flow_std = np.std(flow_magnitude)
+    
+    interpolated = []
+    
+    for i in range(1, num_interpolated + 1):
+        alpha = i / (num_interpolated + 1)
+        
+        # Scale flow
+        scaled_flow = flow * alpha
+        
+        # Create remap coordinates
+        grid_x, grid_y = np.meshgrid(np.arange(w), np.arange(h))
+        map_x = (grid_x + scaled_flow[:, :, 0]).astype(np.float32)
+        map_y = (grid_y + scaled_flow[:, :, 1]).astype(np.float32)
+        
+        # Warp frame1
+        warped = cv2.remap(frame1, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+        
+        # Blend with frame2
+        blended = cv2.addWeighted(warped, 1 - alpha, frame2, alpha, 0)
+        
+        # Estimate confidence
+        confidence = max(0.5, min(0.90, 1.0 - (avg_flow / 50) - (flow_std / 30)))
+        interpolated.append((blended, confidence))
     
     return interpolated
 

@@ -48,10 +48,13 @@ SOURCE_TYPE = "dataset"  # Can be "video" or "dataset"
 
 # Auto-detect video file in dataset folder
 DATASET_DIR = Path(__file__).parent.parent / "dataset"
-VIDEO_FILE = None
 
-# Look for video files in dataset directory
-if DATASET_DIR.exists():
+# Specify video file directly (change this to your video file)
+VIDEO_FILE = DATASET_DIR / "demo_video.mp4"
+
+# Auto-detect fallback (if VIDEO_FILE doesn't exist)
+if VIDEO_FILE and not VIDEO_FILE.exists():
+    VIDEO_FILE = None
     for ext in ["*.mp4", "*.avi", "*.mov", "*.mkv", "*.webm"]:
         videos = list(DATASET_DIR.glob(ext))
         if videos:
