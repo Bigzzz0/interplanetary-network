@@ -50,7 +50,7 @@ SOURCE_TYPE = "dataset"  # Can be "video" or "dataset"
 DATASET_DIR = Path(__file__).parent.parent / "dataset"
 
 # Specify video file directly (change this to your video file)
-VIDEO_FILE = DATASET_DIR / "demo_video.mp4"
+VIDEO_FILE = DATASET_DIR / "573527995_24880053378360210_5058579176015171104_n.mp4"
 
 # Auto-detect fallback (if VIDEO_FILE doesn't exist)
 if VIDEO_FILE and not VIDEO_FILE.exists():
@@ -60,6 +60,10 @@ if VIDEO_FILE and not VIDEO_FILE.exists():
         if videos:
             VIDEO_FILE = str(videos[0])
             break
+
+# Debug: Print video source
+print(f"[DEBUG] VIDEO_FILE = {VIDEO_FILE}")
+print(f"[DEBUG] VIDEO_FILE exists = {VIDEO_FILE.exists() if VIDEO_FILE else 'N/A'}")
 
 VIDEO_SOURCE = VIDEO_FILE if VIDEO_FILE else 0  # Use file if found, else webcam
 FRAME_WIDTH = 640
@@ -120,7 +124,7 @@ def encode_frame_as_mjpeg(frame: np.ndarray, quality: int = 85) -> bytes:
 def capture_frame() -> Optional[np.ndarray]:
     """Capture a single frame from camera or dataset."""
     global camera, frame_count
-    
+
     if camera is None:
         # Initialize camera
         if isinstance(VIDEO_SOURCE, int) and VIDEO_SOURCE >= 0:
@@ -130,18 +134,20 @@ def capture_frame() -> Optional[np.ndarray]:
             camera.set(cv2.CAP_PROP_FPS, FPS)
             print(f"Camera initialized: {FRAME_WIDTH}x{FRAME_HEIGHT}@{FPS}fps")
         else:
-            # Load from video file
-            if os.path.exists(VIDEO_SOURCE):
-                camera = cv2.VideoCapture(VIDEO_SOURCE)
-                print(f"Loading dataset: {VIDEO_SOURCE}")
+            # Load from video file - convert Path to string
+            video_path = str(VIDEO_SOURCE) if VIDEO_SOURCE else ""
+            if video_path and os.path.exists(video_path):
+                camera = cv2.VideoCapture(video_path)
+                print(f"[OK] Loading video: {video_path}")
                 # Get original video dimensions
                 orig_width = int(camera.get(cv2.CAP_PROP_FRAME_WIDTH))
                 orig_height = int(camera.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                print(f"Original video size: {orig_width}x{orig_height}")
+                print(f"    Original video size: {orig_width}x{orig_height}")
+                print(f"    Total frames: {int(camera.get(cv2.CAP_PROP_FRAME_COUNT))}")
             else:
-                print(f"Video file not found: {VIDEO_SOURCE}")
+                print(f"[WARN] Video file not found: {video_path}")
                 return None
-    
+
     if camera is not None and camera.isOpened():
         ret, frame = camera.read()
         if ret:
@@ -149,24 +155,25 @@ def capture_frame() -> Optional[np.ndarray]:
             # Resize maintaining aspect ratio with letterboxing
             h, w = frame.shape[:2]
             target_w, target_h = FRAME_WIDTH, FRAME_HEIGHT
-            
+
             # Calculate scale
             scale = min(target_w / w, target_h / h)
             new_w, new_h = int(w * scale), int(h * scale)
-            
+
             # Resize
             resized = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
-            
+
             # Create black canvas and center the video
             canvas = np.zeros((target_h, target_w, 3), dtype=np.uint8)
             y_offset = (target_h - new_h) // 2
             x_offset = (target_w - new_w) // 2
             canvas[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized
-            
+
             return canvas
         else:
             # End of video file, loop back
-            if isinstance(VIDEO_SOURCE, str):
+            if isinstance(VIDEO_SOURCE, str) or hasattr(VIDEO_SOURCE, 'suffix'):
+                print("[INFO] End of video, looping back...")
                 camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 ret, frame = camera.read()
                 if ret:
