@@ -689,7 +689,11 @@ async def process_stream(websocket: WebSocket):
                     })
 
                     # 2. Add interpolated frames to buffer
-                    for interp_frame, confidence in interpolated_list:
+                    # Store reference frame for quality calculation
+                    for idx, (interp_frame, confidence) in enumerate(interpolated_list):
+                        # Calculate quality metrics by comparing with next real frame
+                        quality_metrics = calculate_quality_metrics(interp_frame, curr_frame)
+                        
                         play_buffer.append({
                             "frame": interp_frame,
                             "metadata": curr_data["metadata"],
@@ -698,7 +702,8 @@ async def process_stream(websocket: WebSocket):
                                 prev_data["metadata"].get("frame_id", 0),
                                 curr_data["metadata"].get("frame_id", 0)
                             ],
-                            "is_synth": True
+                            "is_synth": True,
+                            "quality_metrics": quality_metrics  # Store real calculated metrics
                         })
 
                 if play_buffer:
@@ -709,20 +714,21 @@ async def process_stream(websocket: WebSocket):
                     if is_synth:
                         synth_count += 1
                         state["frames_synthesized"] += 1
-                        
-                        quality_metrics = {"psnr": 50.0, "ssim": 1.0, "frame_match": 100.0}
-                        
+
+                        # Get real calculated quality metrics from buffer
+                        quality_metrics = item.get("quality_metrics", {"psnr": 0, "ssim": 0, "frame_match": 0})
+
                         # Encode frame
                         encoded_synth = encode_frame_to_base64(frame)
                         synth_id = f"synth_{synth_count}"
-                        
-                        # Sign frame
+
+                        # Sign frame with real quality metrics
                         synth_metadata = sign_synthesized_frame(
                             base64.b64decode(encoded_synth),
                             synth_id, item["parent_ids"], item["confidence"], quality_metrics
                         )
-                        
-                        # Send frame (always routing to prediction canvas using is_synthesized=True)
+
+                        # Send frame with real quality metrics
                         synth_output = {
                             "type": "frame",
                             "metadata": {
@@ -730,8 +736,8 @@ async def process_stream(websocket: WebSocket):
                                 "origin_verified": state["origin_verified"],
                                 "psnr": float(round(quality_metrics.get('psnr', 0), 2)),
                                 "ssim": float(round(quality_metrics.get('ssim', 0), 4)),
-                                "confidence": float(round(item["confidence"], 1)),
-                                "frame_match": quality_metrics["frame_match"],
+                                "confidence": float(round(item["confidence"], 4)),
+                                "frame_match": float(round(quality_metrics.get('frame_match', 0), 1)),
                                 "is_synthesized": True,
                                 "is_actually_synth": True
                             },
