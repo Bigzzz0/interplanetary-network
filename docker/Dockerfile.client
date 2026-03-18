@@ -7,7 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy only this service's source files
-COPY client/ .
+COPY src/client/ .
 
 EXPOSE 8004
 

@@ -43,3 +43,15 @@ Thumbs.db
 # Keys (keep sender_public_key.bin as example but ignore private keys)
 *_private_key.bin
 edge_signing_key.bin
+
+# ML Models (large files, download separately)
+models/*.pth
+models/*.pt
+models/*.onnx
+!models/.gitkeep
+!models/README.md
+
+# Test coverage
+.pytest_cache/
+.coverage
+htmlcov/

@@ -21,10 +21,10 @@ import webbrowser
 
 # Define the components and their ports
 components = [
-    {"name": "Sender", "path": "sender/main_video.py", "port": 8001},
-    {"name": "Network Simulator", "path": "network_simulator/main.py", "port": 8002},
-    {"name": "Edge Server", "path": "edge_server/main_ml.py", "port": 8003},
-    {"name": "Client", "path": "client/main.py", "port": 8004},
+    {"name": "Sender", "path": "src/sender/main_video.py", "port": 8001},
+    {"name": "Network Simulator", "path": "src/network_simulator/main.py", "port": 8002},
+    {"name": "Edge Server", "path": "src/edge_server/main_ml.py", "port": 8003},
+    {"name": "Client", "path": "src/client/main.py", "port": 8004},
 ]
 
 processes = []
@@ -73,20 +73,28 @@ class DemoHandler(BaseHTTPRequestHandler):
     
     def send_video_selector_page(self):
         """Send the main video selector HTML page."""
-        global selected_video
-        
+        global selected_video, system_started
+
         videos = get_available_videos()
         current = get_current_video()
-        
+
         # Escape for JSON
         current_json = json.dumps(current if current else "")
-        
+
         html = self.get_html_template(videos, current_json)
-        
+
         self.send_response(200)
         self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.end_headers()
         self.wfile.write(html.encode('utf-8'))
+        
+        # Auto-start system if video is selected and system not started
+        if current and not system_started:
+            print(f"\n[INFO] Video selected: {current}")
+            print("[INFO] Starting system automatically...")
+            threading.Thread(target=start_all_components, daemon=True).start()
+            time.sleep(2)
+            system_started = True
     
     def get_html_template(self, videos, current_json):
         """Generate HTML template."""
@@ -222,17 +230,39 @@ class DemoHandler(BaseHTTPRequestHandler):
         </header>
         
         <div id="message" class="message"></div>
-        
+
+        <div class="panel" style="background: rgba(0, 255, 136, 0.1); border: 2px solid #00ff88;">
+            <h2>🚀 Quick Start Guide</h2>
+            <ol style="margin-left: 20px; line-height: 1.8;">
+                <li><strong>Select a video</strong> from the list below (or use the current selection)</li>
+                <li><strong>Click "Start System"</strong> to launch all components</li>
+                <li><strong>Click "Open Client UI"</strong> button that appears</li>
+                <li><strong>Click "Start Comparison Demo"</strong> on the client page</li>
+                <li><strong>Watch the magic!</strong> Compare baseline vs ML-predicted video</li>
+            </ol>
+            <p style="margin-top: 15px; color: #00ff88; font-weight: 600;">
+                ⚡ The system will auto-start if a video is already selected!
+            </p>
+        </div>
+
         <div class="panel" id="runningPanel" style="display: none;">
             <h2>✅ System Running!</h2>
             <p style="margin-bottom: 15px;">
-                🌍 <strong>Client UI:</strong> 
+                🌍 <strong>Client UI:</strong>
                 <a href="http://localhost:8004" class="link" target="_blank">http://localhost:8004</a>
             </p>
             <p style="margin-bottom: 15px;">
                 📹 <strong>Current Video:</strong> <span id="runningVideo">-</span>
             </p>
-            <button class="btn btn-stop" onclick="stopSystem()">⏹️ Stop System</button>
+            <div class="actions" style="margin-top: 20px;">
+                <a href="http://localhost:8004" class="btn btn-large btn-start" target="_blank" style="display: inline-block; text-decoration: none; text-align: center;">
+                    🖥️ Open Client UI
+                </a>
+                <button class="btn btn-stop" onclick="stopSystem()">⏹️ Stop System</button>
+            </div>
+            <p style="margin-top: 20px; color: #a0a0a0; font-size: 0.9em;">
+                💡 <strong>Tip:</strong> Click "Open Client UI" button above, then click "Start Comparison Demo" on the client page to see the video!
+            </p>
         </div>
         
         <div class="panel" id="selectionPanel">
@@ -457,15 +487,15 @@ def get_available_videos():
 
 def get_current_video():
     """Get currently selected video from sender config."""
-    sender_config = Path(__file__).parent / "sender" / "main_video.py"
-    
+    sender_config = Path(__file__).parent / "src" / "sender" / "main_video.py"
+
     if not sender_config.exists():
         return None
-    
+
     try:
         with open(sender_config, "r", encoding="utf-8") as f:
             content = f.read()
-        
+
         match = re.search(r'VIDEO_FILE = DATASET_DIR / "([^"]*)"', content)
         if match:
             video_name = match.group(1)
@@ -474,36 +504,36 @@ def get_current_video():
                 return video_name
     except Exception:
         pass
-    
+
     return None
 
 
 def set_current_video(video_name):
     """Update sender config to use selected video."""
-    sender_config = Path(__file__).parent / "sender" / "main_video.py"
-    
+    sender_config = Path(__file__).parent / "src" / "sender" / "main_video.py"
+
     if not sender_config.exists():
         return {"success": False, "error": "Sender config not found"}
-    
+
     # Verify video exists
     video_path = Path(__file__).parent / "dataset" / video_name
     if not video_path.exists():
         return {"success": False, "error": f"Video not found: {video_name}"}
-    
+
     try:
         with open(sender_config, "r", encoding="utf-8") as f:
             content = f.read()
-        
+
         pattern = r'VIDEO_FILE = DATASET_DIR / "[^"]*"'
         replacement = f'VIDEO_FILE = DATASET_DIR / "{video_name}"'
-        
+
         new_content = re.sub(pattern, replacement, content)
-        
+
         with open(sender_config, "w", encoding="utf-8") as f:
             f.write(new_content)
-        
+
         return {"success": True, "video": video_name}
-    
+
     except Exception as e:
         return {"success": False, "error": str(e)}
 

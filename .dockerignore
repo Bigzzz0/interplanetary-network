@@ -11,10 +11,10 @@ venv/
 env/
 
 # Signing keys (generated at runtime)
-sender/sender_private_key.bin
-sender/sender_public_key.bin
-edge_server/edge_private_key.bin
-edge_server/edge_public_key.bin
+src/sender/sender_private_key.bin
+src/sender/sender_public_key.bin
+src/edge_server/edge_private_key.bin
+src/edge_server/edge_public_key.bin
 
 # Dataset (large files)
 dataset/
@@ -27,6 +27,16 @@ dataset/
 .vscode/
 .idea/
 
-# Misc
+# Documentation
 *.md
-run_demo.py
+!requirements.txt
+
+# Tests
+tests/
+
+# Models (should be downloaded separately)
+models/
+
+# Misc
+*.log
+*.tmp

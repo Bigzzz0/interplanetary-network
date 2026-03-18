@@ -2,15 +2,19 @@
 """Test script for ML interpolation."""
 
 import sys
+import os
 import numpy as np
 import cv2
+
+# Add src to Python path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 print("=" * 60)
 print("Testing ML Frame Interpolation")
 print("=" * 60)
 
 # Import main_ml module
-from edge_server.main_ml import (
+from src.edge_server.main_ml import (
     interpolate_frames_ml,
     interpolate_frames_opencv,
     load_ml_models,

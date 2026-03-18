@@ -35,18 +35,18 @@ raft_available = False
 dain_available = False
 
 try:
-    from edge_server.raft import RAFT, load_raft_model
+    from src.edge_server.raft import RAFT, load_raft_model
     raft_available = True
     print("[OK] RAFT architecture loaded")
 except ImportError as e:
-    print(f"[WARN] edge_server.raft not found: {e}")
+    print(f"[WARN] src.edge_server.raft not found: {e}")
 
 try:
-    from edge_server.dain import DAIN, load_dain_model
+    from src.edge_server.dain import DAIN, load_dain_model
     dain_available = True
     print("[OK] DAIN architecture loaded")
 except ImportError as e:
-    print(f"[WARN] edge_server.dain not found: {e}")
+    print(f"[WARN] src.edge_server.dain not found: {e}")
 
 from nacl.signing import SigningKey, VerifyKey
 from nacl.encoding import Base64Encoder

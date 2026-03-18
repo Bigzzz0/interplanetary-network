@@ -3,16 +3,18 @@ version: "3.9"
 services:
   sender:
     build:
-      context: .
-      dockerfile: sender/Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile.sender
     ports:
       - "8001:8001"
+    volumes:
+      - ../dataset:/app/dataset
     restart: unless-stopped
 
   network_simulator:
     build:
-      context: .
-      dockerfile: network_simulator/Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile.network_simulator
     ports:
       - "8002:8002"
     environment:
@@ -23,8 +25,8 @@ services:
 
   edge_server:
     build:
-      context: .
-      dockerfile: edge_server/Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile.edge_server
     ports:
       - "8003:8003"
     environment:
@@ -32,11 +34,18 @@ services:
     depends_on:
       - network_simulator
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]  # Optional: GPU support for ML
+              count: all
 
   client:
     build:
-      context: .
-      dockerfile: client/Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile.client
     ports:
       - "8004:8004"
     environment:
